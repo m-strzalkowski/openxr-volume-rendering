@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+	<!-- Both of these are replaced by main.js as soon as the module runs; the
+	     markup carries the default language so the page is never blank first. -->
+	<title>Gęstość przyspieszeń 3D — XR</title>
+	<style>
+		* { box-sizing: border-box; }
+
+		body {
+			margin: 0;
+			overflow: hidden;
+			background: #0a0a0f;
+			font: 13px/1.5 ui-monospace, "DejaVu Sans Mono", monospace;
+			color: #a0a0aa;
+		}
+
+		#hud {
+			position: fixed;
+			top: 10px;
+			left: 12px;
+			z-index: 10;
+			pointer-events: none;
+			text-shadow: 0 1px 3px #000;
+		}
+
+		#hud b { color: #e8e8ee; font-weight: 600; }
+
+		#hud .dim { color: #6a6a76; }
+
+		#status {
+			position: fixed;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			z-index: 10;
+			padding: 14px 20px;
+			border: 1px solid #33333f;
+			border-radius: 6px;
+			background: #14141ce0;
+			color: #d0d0d8;
+		}
+
+		#status.err { border-color: #a33; color: #f0b0b0; }
+
+		#status.hidden { display: none; }
+
+		#help {
+			position: fixed;
+			top: 10px;
+			right: 14px;
+			z-index: 10;
+			margin: 0;
+			white-space: pre;
+			font: 12px/1.5 ui-monospace, "DejaVu Sans Mono", monospace;
+			color: #8b8b98;
+			text-shadow: 0 1px 3px #000;
+			pointer-events: none;
+		}
+
+		/* three's XR buttons position themselves, and re-set style.left from an
+		   async support check, so the offsets have to outrank the inline style */
+		body > button { z-index: 20; }
+
+		#ar-btn { left: calc(50% - 130px) !important; }
+
+		#vr-btn { left: calc(50% + 10px) !important; }
+
+		/* Third in the row. three sizes its own buttons to 100px inline once the
+		   support check resolves, and the offsets above space them 40px apart,
+		   so this one repeats both and the three read as one set of controls. */
+		#lang-btn {
+			position: fixed;
+			bottom: 20px;
+			left: calc(50% + 150px);
+			width: 100px;
+			z-index: 20;
+			padding: 12px 6px;
+			border: 1px solid rgba(255, 255, 255, 0.5);
+			border-radius: 4px;
+			background: rgba(0, 0, 0, 0.1);
+			/* Dimmed through the text colour, NOT through opacity: opacity fades
+			   the whole box including the flag, and a translucent flag looks
+			   broken rather than subdued. A colour emoji carries its own palette
+			   and ignores `color`, so the flag stays fully saturated while the
+			   label and border sit back at half strength. */
+			color: rgba(255, 255, 255, 0.5);
+			/* the emoji family is named first: fallback is per character, and
+			   neither the mono nor the sans faces carry regional indicators */
+			font: normal 13px "Noto Color Emoji", sans-serif;
+			text-align: center;
+			outline: none;
+			cursor: pointer;
+		}
+
+		#lang-btn:hover {
+			color: #fff;
+			border-color: #fff;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="status">ładuję wolumen…</div>
+	<div id="hud"></div>
+	<pre id="help"></pre>
+	<button id="lang-btn" type="button">&#x1F1EC;&#x1F1E7; English</button>
+	<script type="importmap">
+		{
+			"imports": {
+				"three": "./vendor/three.module.js",
+				"three/addons/": "./vendor/addons/"
+			}
+		}
+	</script>
+	<script type="module" src="./main.js"></script>
+</body>
+
+</html>

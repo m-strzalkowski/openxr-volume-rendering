@@ -1,0 +1,14 @@
+            == INPUTS ==
+HEADSET: camera movement and rotation
+
+LEFT CONTROLLER:
+thumbstick (on both axes) - move the volume left and right
+thumbstick (on up/down axis) + smaller trigger - move volume up/down
+Y/X - threshold up/down (yes it was changed)
+thumbstick press - change colormap
+
+RIGHT CONTROLLER:
+thumbstick press - toggle passthrough
+B/A - change car (can be done also in menu)
+thumbstick up (and hold) - open car selection menu
+B/A + hold smaller trigger: adjust number of steps of the raymarching

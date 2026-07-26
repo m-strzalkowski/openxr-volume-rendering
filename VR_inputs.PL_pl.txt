@@ -1,0 +1,20 @@
+            == STEROWANIE ==
+WYJŚCIE: na prawym konrolerze guzik "Meta" (płaski)
+
+Ruch gogli -> ruch kamery
+
+LEWY KONTROLER:
+analog (obie osie) -> ruch chmury lewo/prawo, przód/tył
+analog (oś góra/dół) + przytrzymany mniejszy spust
+    -> ruch chmury góra/dół
+Y/X - Poziom odcięcia -  żeby spojrzeć wgłąb chmury
+(komórki z wartością mniejszą od progu zostają ukryte)
+wciśni analog - zmień paletę kolorów
+
+PRAWY KONTROLER:
+wciśnij analog - wł/wył obraz z kamery
+B/A - zmień plik z danymi
+analog w górę i przytrzymać - otwórz menu wyboru danych
+B/A gdy mniejszy spust wciśnięty
+ - regulacja liczby kroków przy śledzeniu promieni
+ (nie zmniejszać za bardzo, gdy ma się słaby żołądek)
