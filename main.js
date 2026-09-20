@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
-import { ARButton } from 'three/addons/ARButton.js';
-import { VRButton } from 'three/addons/VRButton.js';
 import { HEADER, loadVolumeData } from './volume.js';
-import { T, LANG, OTHER_LANG, setLang, localiseXrButton } from './i18n.js';
+import { T, LANG } from './i18n.js';
+import { buildUI } from './ui.js';
+import { buildPage, detectPlatform, isCompact } from './page.js';
 
 // ---------------------------------------------------------------- parameters
 
@@ -66,12 +66,17 @@ document.documentElement.lang = LANG;
 document.title = T.title;
 say(T.loadingVolume);
 
-// Flat page only: a reload is the whole mechanism, and there is nothing in a
-// session that would survive one. Hidden while presenting, because the DOM
-// overlay puts the whole body in front of the viewer.
-const langBtn = document.getElementById('lang-btn');
-langBtn.textContent = T.langOther;
-langBtn.addEventListener('click', () => setLang(OTHER_LANG));
+// Which of the three this is decides how much of the page there is room for.
+// The answer is settled here, before anything is built, and written onto <html>
+// where the stylesheet can see it; ?platform= overrides it, which is the only
+// way to look at a phone's layout without a phone.
+const PLATFORM = detectPlatform(qs.get('platform'));
+
+// Which collection of vehicles this is: a directory under backend/queries,
+// named by ?q= and `default` when nothing says otherwise. It is part of every
+// path the page fetches, because a static export is a directory of files and a
+// directory cannot dispatch on a query string.
+const SET = qs.get('q') || 'default';
 
 // ---------------------------------------------------------------- volume shader
 
@@ -782,6 +787,28 @@ blitQuad.renderOrder = 100;   // over the axes, as render3.py drew it
 const _vp = new THREE.Vector4();
 const _size = new THREE.Vector2();
 
+// setViewport() and setScissor() take CSS pixels and multiply by the pixel
+// ratio themselves. Everything in these passes is measured in DRAWING-BUFFER
+// pixels instead -- that is what the render targets are allocated in, what
+// gl_FragCoord reports, and what getDrawingBufferSize() returns -- so the ratio
+// has to be divided back out on the way in.
+//
+// On a display at ratio 1 the two units are the same number, which is why this
+// was invisible on every desktop and in every test here; at ratio 2 each pass
+// was drawn into a viewport twice the size of its buffer, anchored at the
+// bottom left, which pushed the whole picture off the top right corner of a
+// phone. An XR session is unaffected because three sets the ratio to 1 for the
+// duration and restores it afterwards.
+function setViewportPx(x, y, w, h) {
+	const pr = renderer.getPixelRatio();
+	renderer.setViewport(x / pr, y / pr, w / pr, h / pr);
+}
+
+function setScissorPx(x, y, w, h) {
+	const pr = renderer.getPixelRatio();
+	renderer.setScissor(x / pr, y / pr, w / pr, h / pr);
+}
+
 blitQuad.onBeforeRender = (r, s, cam) => {
 	if (cam.viewport) {
 		_vp.copy(cam.viewport);
@@ -846,15 +873,15 @@ function renderVolumePass() {
 			const v = c.viewport;
 			const x = Math.floor(v.x * rtScale), y = Math.floor(v.y * rtScale);
 			const w = Math.floor(v.z * rtScale), h = Math.floor(v.w * rtScale);
-			renderer.setViewport(x, y, w, h);
-			renderer.setScissor(x, y, w, h);
+			setViewportPx(x, y, w, h);
+			setScissorPx(x, y, w, h);
 			renderer.setScissorTest(true);
 			renderer.render(volumeScene, c);
 		}
 		renderer.setScissorTest(false);
 		// Never restore a target the session may have taken with it.
 		renderer.setRenderTarget(xr.isPresenting ? prevRT : null);
-		renderer.setViewport(0, 0, fbW, fbH);
+		setViewportPx(0, 0, fbW, fbH);
 		xr.enabled = true;
 		renderer.autoClear = autoClear;
 	} else {
@@ -864,11 +891,11 @@ function renderVolumePass() {
 		renderer.setRenderTarget(rt);
 		renderer.setScissorTest(false);
 		renderer.clear(true, false, false);
-		renderer.setViewport(0, 0, Math.floor(_size.x * rtScale), Math.floor(_size.y * rtScale));
+		setViewportPx(0, 0, Math.floor(_size.x * rtScale), Math.floor(_size.y * rtScale));
 		renderer.render(volumeScene, camera);
 		// Never restore a target the session may have taken with it.
 		renderer.setRenderTarget(xr.isPresenting ? prevRT : null);
-		renderer.setViewport(0, 0, _size.x, _size.y);
+		setViewportPx(0, 0, _size.x, _size.y);
 		renderer.autoClear = autoClear;
 	}
 }
@@ -954,8 +981,8 @@ function renderEnvPass() {
 	const wasEnabled = xr.enabled;
 
 	const draw = (cam, rect, layer, i) => {
-		renderer.setViewport(rect.x, rect.y, rect.z, rect.w);
-		renderer.setScissor(rect.x, rect.y, rect.z, rect.w);
+		setViewportPx(rect.x, rect.y, rect.z, rect.w);
+		setScissorPx(rect.x, rect.y, rect.z, rect.w);
 		renderer.setScissorTest(true);      // keeps one eye out of the other
 		envUniforms.dstRect.value.copy(rect);
 		envUniforms.layer.value = layer;
@@ -1262,6 +1289,19 @@ async function buildHelp() {
 	helpMesh.rotation.y = Math.PI;                      // facing back at the origin
 	helpOffset.copy(helpMesh.position).sub(cloudPos);
 	scene.add(helpMesh);
+	applyHelpBanner();
+}
+
+// The banner is reading matter, and a compact page has none: the HTML
+// instructions are hidden there for want of room, and this is the same text.
+// It also stands roughly where the camera has to sit to frame the assembly in
+// portrait, so leaving it up risks a black wall across the view. In a session
+// it comes back -- there it is the only place the controls are written down.
+function applyHelpBanner() {
+	if (helpMesh) {
+		helpMesh.visible = !bare
+			&& (renderer.xr.isPresenting || !isCompact(PLATFORM));
+	}
 }
 
 // ---------------------------------------------------------------- depth overlay
@@ -1387,7 +1427,7 @@ function probeDepth(now) {
 		xr.enabled = false;
 		renderer.autoClear = true;
 		renderer.setRenderTarget(probeRT);
-		renderer.setViewport(0, 0, 1, 1);
+		setViewportPx(0, 0, 1, 1);
 		renderer.render(probeScene, probeCam);
 		renderer.readRenderTargetPixels(probeRT, 0, 0, 1, 1, probeBuf);
 		probeMetres = probeBuf[0];   // prepass red channel is already metres
@@ -1722,7 +1762,7 @@ function cycleCar(dir) {
 
 async function fetchDevices() {
 	try {
-		const r = await fetch('./api/devices.json');
+		const r = await fetch(`./api/${SET}/devices.json`);
 		if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
 		devices = await r.json();
 		console.log(`devices: ${devices.length} available`);
@@ -1750,8 +1790,11 @@ function stats() {
 function updateHud() {
 	if (!volInfo) return;
 	const s = stats();
+	// Named only when it is not the default one: a demo set should be obvious,
+	// and the usual case should not be labelled at all.
+	const setTag = SET === 'default' ? '' : ` <span class="dim">${T.hudSet}</span> ${SET}`;
 	hud.innerHTML = [
-		`<b>dvc=${volInfo.dvc}</b> <span class="dim">${T.hudPoints}</span> ${volInfo.points.toLocaleString(T.numLocale)}`,
+		`<b>dvc=${volInfo.dvc}</b> <span class="dim">${T.hudPoints}</span> ${volInfo.points.toLocaleString(T.numLocale)}${setTag}`,
 		`<span class="dim">${T.hudVoxels}</span> ${volInfo.nonzero.toLocaleString(T.numLocale)}/512000` +
 		`  <span class="dim">${T.hudMax}</span> ${volInfo.maxCount}${T.hudMaxUnit}`,
 		`<span class="dim">${T.hudThreshold}</span> ${s.thr}` +
@@ -1762,7 +1805,8 @@ function updateHud() {
 	].join('<br>');
 
 	drawPanel([
-		`dvc ${volInfo.dvc}    ${volInfo.points.toLocaleString(T.numLocale)} ${T.pts}`,
+		`dvc ${volInfo.dvc}    ${volInfo.points.toLocaleString(T.numLocale)} ${T.pts}`
+			+ (SET === 'default' ? '' : `    [${SET}]`),
 		loadingDvc !== null
 			? T.panelLoading(loadingDvc)
 			: `${fps.toFixed(0)} fps   ${T.panelBuffer} ${s.res}   ${T.panelSteps} ${steps}`,
@@ -1783,10 +1827,20 @@ const controls = new OrbitControls(camera, renderer.domElement);
 // cloudPos, not cloud.position: the group is not placed until applyCloudPos().
 controls.target.set(cloudPos.x, cloudPos.y + P.size * 0.30, cloudPos.z);
 controls.enableDamping = true;
+
+// The camera's field of view is the VERTICAL one, so a portrait window sees a
+// much narrower slice sideways than a landscape one at the same distance --
+// which on a phone cuts the caption off at both edges. Backing off by the
+// aspect ratio puts the width back. Exactly 1 on anything square or wider, so
+// desktop and headset framing is untouched, and applied once: afterwards the
+// distance belongs to whoever is pinching it.
+const framing = innerWidth < innerHeight
+	? Math.min(1.75, innerHeight / innerWidth)
+	: 1;
 camera.position.set(
-	controls.target.x + P.size * 1.6,
-	controls.target.y + P.size * 0.55,
-	controls.target.z + P.size * 2.0);
+	controls.target.x + P.size * 1.6 * framing,
+	controls.target.y + P.size * 0.55 * framing,
+	controls.target.z + P.size * 2.0 * framing);
 controls.update();
 
 function applyMode() {
@@ -1845,8 +1899,32 @@ addEventListener('keydown', e => {
 		case 'd': case 'D': stepDepthView(); break;     // = hold right B, A cycles
 		case 'm': case 'M': toggleColormap(); break;    // = left thumbstick press
 		case 'b': case 'B': toggleBackdrop(); break;    // = right thumbstick press
+		case 'v': case 'V': toggleBare(); break;        // = left Y + squeeze
 	}
 });
+
+// Everything except the cloud, gone: no axes, no labels, no caption, no
+// banner, no controls, no rays, and none of the HTML the dom-overlay puts in
+// front of you either. For looking at the thing itself, and for photographing
+// it. The backdrop is deliberately left alone -- it is the background, not
+// furniture -- and so is the depth inspector, which nobody turns on by accident.
+let bare = false;
+
+function toggleBare() {
+	bare = !bare;
+	if (bare) closeMenu();     // modal, and about to become invisible
+	applyBare();
+}
+
+function applyBare() {
+	cloud.visible = !bare;            // the axes; applyMode still picks which pair
+	labelGroup.visible = !bare;       // X/Y/Z
+	panel.visible = !bare;            // the caption
+	document.body.classList.toggle('bare', bare);
+	applyHelpBanner();
+	// The in-scene controls and the rays go through ui.js's own predicate.
+	updateHud();
+}
 
 function toggleColormap() {
 	uniforms.lightMode.value ^= 1;
@@ -1873,7 +1951,12 @@ function horizontalBasis(cam) {
 	_right.set(-_fwd.z, 0, _fwd.x);
 }
 
+// True while the cloud is being carried by the UI handle. The stick and the
+// handle write the same position, so exactly one of them may be in charge.
+let uiDragging = false;
+
 function moveCloud(stickX, stickY, vertical, dt) {
+	if (uiDragging) return;
 	const d = MOVE_SPEED * dt;
 	if (vertical) {
 		cloudPos.y -= stickY * d;              // stick up = up
@@ -1935,16 +2018,18 @@ function pollControllers(dt) {
 			const squeeze = !!gp.buttons[1]?.pressed;
 			if (squeeze) {
 				// Squeeze keeps its existing job -- thumbstick moves the volume
-				// up and down -- and additionally makes X the depth inspector.
-				// It lives here because there is no menu button to put it on:
-				// WebXR's oculus-touch-v3 profile exposes only trigger, squeeze,
-				// thumbstick, A/X, B/Y and a touch-only thumbrest. The menu and
-				// Meta buttons are reserved by the system and never reach us.
+				// up and down -- and additionally makes X the depth inspector
+				// and Y the bare view. They live here because there is no menu
+				// button to put them on: WebXR's oculus-touch-v3 profile exposes
+				// only trigger, squeeze, thumbstick, A/X, B/Y and a touch-only
+				// thumbrest. The menu and Meta buttons are reserved by the
+				// system and never reach us.
 				//
-				// One button walks the whole cycle, off included, so there is no
-				// separate toggle to get out of step with the stage.
+				// X walks the whole inspector cycle, off included, so there is
+				// no separate toggle to get out of step with the stage.
 				if (Math.abs(sy) > DEADZONE) moveCloud(0, sy, true, dt);
 				if (pressed(4)) { stepDepthView(); pulse(); }         // X
+				if (pressed(5)) { toggleBare(); pulse(); }            // Y
 			} else {
 				if (Math.abs(sx) > DEADZONE || Math.abs(sy) > DEADZONE) {
 					moveCloud(Math.abs(sx) > DEADZONE ? sx : 0,
@@ -1970,8 +2055,10 @@ function pollControllers(dt) {
 				// off-centre cannot summon the menu.
 				if (step && Math.abs(sy) > MENU_OPEN) { openMenu(); pulse(); }
 				// Plain again: B/A change vehicle, squeeze makes them the step
-				// count. The index trigger stays unbound -- hand tracking fires
-				// it at random.
+				// count. The index trigger is not read here at all: it belongs
+				// to ui.js, which acts on it only when the ray is resting on a
+				// control -- which is also what makes a stray hand-tracking
+				// pinch harmless, the reason it used to be left unbound.
 				const squeeze = !!gp.buttons[1]?.pressed;
 				if (pressed(5)) { squeeze ? bump('steps', +1) : cycleCar(+1); pulse(); }   // B
 				if (pressed(4)) { squeeze ? bump('steps', -1) : cycleCar(-1); pulse(); }   // A
@@ -1989,6 +2076,9 @@ function pollControllers(dt) {
 // session starts exactly as before, minus the overlay. The spec requires the
 // depthSensing dictionary to accompany the feature name, so both appear or
 // neither does.
+// The whole body is the overlay, so the readout and the instructions are
+// legible in AR. ARButton then treats that root as its own and hides it when
+// the session ends -- see the sessionend handler, which puts it back.
 const arInit = {
 	optionalFeatures: ['local-floor', 'dom-overlay'],
 	domOverlay: { root: document.body },
@@ -2000,13 +2090,19 @@ if (P.depth) {
 		dataFormatPreference: ['luminance-alpha', 'float32'],
 	};
 }
-const arBtn = ARButton.createButton(renderer, arInit);
-const vrBtn = VRButton.createButton(renderer);
-arBtn.id = 'ar-btn';
-vrBtn.id = 'vr-btn';
-document.body.append(arBtn, vrBtn);
-localiseXrButton(arBtn);
-localiseXrButton(vrBtn);
+// The HTML controls. Same actions as the keys and the controllers reach, and
+// [menu] is exactly the right arrow: open the list, or accept from it.
+const page = buildPage({
+	renderer, arInit, platform: PLATFORM,
+	onLayout: () => applyHelpBanner(),   // the 3D banner is reading matter too
+	actions: {
+		'thr-': () => bump('threshold', -1),
+		'thr+': () => bump('threshold', +1),
+		'car-': () => cycleCar(-1),
+		'car+': () => cycleCar(+1),
+		'menu': () => (menuOpen ? menuSelect() : openMenu()),
+	},
+});
 
 let needsPlacement = false;
 
@@ -2014,7 +2110,8 @@ renderer.xr.addEventListener('sessionstart', () => {
 	try { renderer.xr.setFoveation(1.0); } catch { /* not every runtime */ }
 	controls.enabled = false;
 	needsPlacement = true;
-	langBtn.style.display = 'none';   // dom-overlay would put it in front of you
+	page.presenting(true);   // the HTML controls hand over to the in-scene ones
+	applyHelpBanner();
 
 	// What we actually got, rather than what we asked for -- this is the first
 	// thing to read when the depth overlay stays blank.
@@ -2030,7 +2127,17 @@ renderer.xr.addEventListener('sessionstart', () => {
 
 renderer.xr.addEventListener('sessionend', () => {
 	controls.enabled = true;
-	langBtn.style.display = '';
+	page.presenting(false);
+	if (bare) toggleBare();   // a session's view mode, not the page's
+	applyHelpBanner();
+	ui.reset();            // the controllers left with the session
+
+	// ARButton treats the dom-overlay root as something it owns: it shows the
+	// root when the session starts and sets display:none on it when the session
+	// ends. Our root is document.body, so leaving AR hides the entire page --
+	// which is what "AR sessions do not exit cleanly" in RENDERING.md was. The
+	// next frame, because ARButton's own 'end' listener may run after this one.
+	requestAnimationFrame(() => { document.body.style.display = ''; });
 	depthView = depthKey = false;
 	depthQuad.visible = false;
 	depthBinding = null;   // tied to the session that just ended
@@ -2166,6 +2273,36 @@ function debugDump(now) {
 	console.log('[xrviz]', JSON.stringify(o));
 }
 
+// ---------------------------------------------------------------- pointer ui
+
+// The controls themselves live in ui.js. Everything they do already existed as
+// a function, so this is a dispatch table and nothing more -- there is no
+// second implementation of anything to drift out of step with the keys and the
+// controller buttons.
+const ui = buildUI({
+	renderer, scene, camera, panel,
+	blocked: () => menuOpen || bare,  // the vehicle menu is modal; bare hides everything
+	// Only in a session. On the flat page the HTML controls have the job, and
+	// two sets of buttons for the same five actions is one set too many.
+	visible: () => renderer.xr.isPresenting,
+	debug: P.debug,
+	actions: {
+		'thr-': () => bump('threshold', -1),
+		'thr+': () => bump('threshold', +1),
+		'car-': () => cycleCar(-1),
+		'car+': () => cycleCar(+1),
+	},
+	// The handle moves the one thing the whole assembly hangs off. Everything
+	// that has to follow -- cube, axes, labels, caption, banner -- already
+	// follows it through applyCloudPos(), so dragging is three lines here and
+	// no second placement path to keep in step with the thumbstick's.
+	drag: {
+		get: out => out.copy(cloudPos),
+		set: v => { cloudPos.copy(v); applyCloudPos(); },
+		active: on => { uiDragging = on; },
+	},
+});
+
 // ---------------------------------------------------------------- loop
 
 let last = performance.now();
@@ -2186,6 +2323,9 @@ renderer.setAnimationLoop(() => {
 	adaptResolution(dt, now);
 	if (controls.enabled) controls.update();
 	facePanel(renderer.xr.isPresenting ? renderer.xr.getCamera() : camera);
+	// After facePanel, so the hit test uses the orientation this frame will be
+	// drawn with rather than the previous one's.
+	ui.update();
 
 	depthView = depthKey;
 	updateDepth();                        // the banner needs it regardless
@@ -2234,11 +2374,12 @@ if (worker) {
 	worker.onerror = e => console.error('volume worker:', e.message);
 }
 
-// The device id lives in the path, not the query, so a static export can answer
-// this with a file. `limit` is a debugging knob only the live backend can
-// honour, so it is only appended when it is actually set.
+// The set and the device id both live in the path, not the query, so a static
+// export can answer this with a file. `limit` is a debugging knob only a live
+// backend with a query behind it can honour, so it is only appended when it is
+// actually set.
 function fetchVolume(dvc, limit) {
-	const url = `./api/volume/${dvc}.vol` + (limit > 0 ? `?limit=${limit}` : '');
+	const url = `./api/${SET}/volume/${dvc}.vol` + (limit > 0 ? `?limit=${limit}` : '');
 	if (!worker) return loadVolumeData(url);
 	const id = ++reqSeq;
 	return new Promise((resolve, reject) => {

@@ -43,7 +43,10 @@ const STRINGS = {
 		// The button offers the OTHER language, so it flies the other flag.
 		// Regional indicators GB, spelled out rather than pasted, because a pair
 		// of them is one glyph that no editor will show you as two code points.
-		langOther: '\u{1F1EC}\u{1F1E7} English',
+		// The button offers the OTHER language, so it flies the other flag. Flag
+		// and word are separate because the phone layout shows the flag alone.
+		langFlag: '\u{1F1EC}\u{1F1E7}',
+		langLabel: 'English',
 		loadingVolume: 'ładuję wolumen…',
 		helpFile: './VR_inputs.PL_pl.txt',
 		numLocale: 'pl',
@@ -56,6 +59,11 @@ const STRINGS = {
 		depthError: m => `głębia: ${m}`,
 		depthStage: (i, name) => `głębia ${i}: ${name}`,
 		rulerNone: 'brak',
+
+		btnPrev: 'poprz.',
+		btnNext: 'nast.',
+		btnMenu: 'menu',
+		xrUnavailable: 'WebXR niedostępne',
 
 		menuTitle: 'POJAZD',
 		menuCount: n => `${n} dostępnych`,
@@ -74,6 +82,7 @@ const STRINGS = {
 		hudSamples: 'prób/woksel',
 		hudBuffer: 'bufor:',
 		hudColour: 'M: tryb koloru',
+		hudSet: 'zestaw:',
 		// The in-scene panel repeats a few of these without the key hints; there
 		// is no keyboard in the headset to hint at.
 		panelBuffer: 'bufor',
@@ -97,7 +106,8 @@ const STRINGS = {
 
 	en: {
 		title: '3D acceleration density — XR',
-		langOther: '\u{1F1F5}\u{1F1F1} Polski',   // regional indicators PL
+		langFlag: '\u{1F1F5}\u{1F1F1}',   // regional indicators PL
+		langLabel: 'Polski',
 		loadingVolume: 'loading volume…',
 		helpFile: './VR_inputs.EN_en.txt',
 		numLocale: 'en-GB',
@@ -110,6 +120,11 @@ const STRINGS = {
 		depthError: m => `depth: ${m}`,
 		depthStage: (i, name) => `depth ${i}: ${name}`,
 		rulerNone: 'none',
+
+		btnPrev: 'prev',
+		btnNext: 'next',
+		btnMenu: 'menu',
+		xrUnavailable: 'WebXR not available',
 
 		menuTitle: 'VEHICLE',
 		menuCount: n => `${n} available`,
@@ -128,6 +143,7 @@ const STRINGS = {
 		hudSamples: 'samples/voxel',
 		hudBuffer: 'buffer:',
 		hudColour: 'M: colour mode',
+		hudSet: 'set:',
 		panelBuffer: 'buffer',
 		panelSteps: 'steps',
 		panelThreshold: t => `threshold ${t}`,
