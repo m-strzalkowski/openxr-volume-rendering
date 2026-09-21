@@ -1,1 +1,18 @@
-[{"name":"default","kind":"sql"},{"name":"geometric","kind":"static"},{"name":"samples","kind":"static"}]
+[
+  {
+    "name": "default",
+    "kind": "sql"
+  },
+  {
+    "name": "geometric",
+    "kind": "static"
+  },
+  {
+    "name": "samples",
+    "kind": "static"
+  },
+  {
+    "name": "wh",
+    "kind": "static"
+  }
+]
