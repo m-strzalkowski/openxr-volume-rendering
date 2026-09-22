@@ -1,7 +1,7 @@
 	================================================================
 	===    RENDERING VOLUMES (3D textures) USING RAYMARCHING     ===
 	===      AND META QUEST 3 DEPTH SENSOR TO DRIVE OPACITY      ===
-	===               USING OPEN XR IN BROWSER	             ===
+	===               USING OPEN XR IN BROWSER	                 ===
 	===   IMPLEMENTED IN A DISGUSTING MANNER LARGELY BY AN LLM   ===
 	================================================================
 
